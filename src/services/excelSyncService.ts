@@ -26,32 +26,52 @@ export function exportClientsToExcel(clients: ClientProject[], fileName = 'Clien
  * Convert ClientProject[] to raw sheet overview rows
  */
 function clientsToOverviewRows(clients: ClientProject[]) {
-  return clients.map((c) => ({
-    'ID': c.id,
-    'Client Name': c.clientName,
-    'Company': c.company,
-    'Domain': c.domain,
-    'Staging URL': c.stagingUrl || '',
-    'Status': c.status,
-    'Health': c.healthStatus,
-    'CMS / Framework': c.cmsFramework,
-    'Stack Version': c.phpNodeVersion || '',
-    'Hosting Provider': c.hostingProvider,
-    'Server IP': c.serverIp || '',
-    'SSL Status': c.sslStatus,
-    'SSL Expiry': c.sslExpiryDate || '',
-    'Domain Renewal': c.domainRenewalDate || '',
-    'Billing Frequency': c.billingFrequency || 'monthly',
-    'Project Cost (₹)': c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0),
-    'Monthly Retainer ($)': c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0),
-    'Contact Name': c.primaryContact.name,
-    'Contact Email': c.primaryContact.email,
-    'Contact Phone': c.primaryContact.phone || '',
-    'Tags': c.tags.join(', '),
-    'Last Backup': c.lastBackupDate || '',
-    'Notes': c.notes || '',
-    'Last Sync': c.lastSyncDate || '',
-  }));
+  return clients.map((c) => {
+    const wpCred = c.credentials.find((cr) => cr.category === 'wp_admin');
+    const ftpCred = c.credentials.find((cr) => cr.category === 'ftp_sftp');
+    const cpanelCred = c.credentials.find((cr) => cr.category === 'hosting_cpanel');
+    const dbCred = c.credentials.find((cr) => cr.category === 'database');
+
+    return {
+      'ID': c.id,
+      'Client Name': c.clientName,
+      'Company': c.company,
+      'Domain': c.domain,
+      'Staging URL': c.stagingUrl || '',
+      'Status': c.status,
+      'Health': c.healthStatus,
+      'CMS / Framework': c.cmsFramework,
+      'Stack Version': c.phpNodeVersion || '',
+      'Hosting Provider': c.hostingProvider,
+      'Server IP': c.serverIp || '',
+      'SSL Status': c.sslStatus,
+      'SSL Expiry': c.sslExpiryDate || '',
+      'Domain Renewal': c.domainRenewalDate || '',
+      'Billing Frequency': c.billingFrequency || 'monthly',
+      'Project Cost (₹)': c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0),
+      'Monthly Retainer ($)': c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0),
+      'WP Admin URL': wpCred ? wpCred.hostUrl : `https://${c.domain}/wp-admin`,
+      'WP Admin User': wpCred ? wpCred.username : '',
+      'WP Admin Pass': wpCred ? wpCred.password : '',
+      'FTP Host': ftpCred ? ftpCred.hostUrl : '',
+      'FTP User': ftpCred ? ftpCred.username : '',
+      'FTP Pass': ftpCred ? ftpCred.password : '',
+      'cPanel Host': cpanelCred ? cpanelCred.hostUrl : '',
+      'cPanel User': cpanelCred ? cpanelCred.username : '',
+      'cPanel Pass': cpanelCred ? cpanelCred.password : '',
+      'Database User': dbCred ? dbCred.username : '',
+      'Database Pass': dbCred ? dbCred.password : '',
+      'Vault Credentials Count': c.credentials.length,
+      'Vault Credentials JSON': JSON.stringify(c.credentials),
+      'Contact Name': c.primaryContact.name,
+      'Contact Email': c.primaryContact.email,
+      'Contact Phone': c.primaryContact.phone || '',
+      'Tags': c.tags.join(', '),
+      'Last Backup': c.lastBackupDate || '',
+      'Notes': c.notes || '',
+      'Last Sync': c.lastSyncDate || '',
+    };
+  });
 }
 
 /**
@@ -330,28 +350,68 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
       updatedAt: new Date().toISOString().split('T')[0],
     };
 
-    if (row['WP Admin User'] || row['WP Admin Pass']) {
-      project.credentials.push({
-        id: `cred-inline-wp-${index}`,
-        category: 'wp_admin',
-        label: 'WordPress Admin',
-        hostUrl: row['WP Admin URL'] || `https://${domain}/wp-admin`,
-        username: row['WP Admin User'] || 'admin',
-        password: row['WP Admin Pass'] || '',
-        updatedAt: new Date().toISOString().split('T')[0],
-      });
+    // Priority 1: Check for embedded Vault Credentials JSON string
+    const jsonVaultStr = row['Vault Credentials JSON'] || row['Credentials JSON'] || row['Vault JSON'];
+    if (jsonVaultStr) {
+      try {
+        const parsedVault = JSON.parse(jsonVaultStr);
+        if (Array.isArray(parsedVault) && parsedVault.length > 0) {
+          project.credentials = parsedVault;
+        }
+      } catch (err) {
+        console.warn('Could not parse Vault Credentials JSON string from row', err);
+      }
     }
 
-    if (row['FTP User'] || row['FTP Pass']) {
-      project.credentials.push({
-        id: `cred-inline-ftp-${index}`,
-        category: 'ftp_sftp',
-        label: 'FTP/SFTP Credentials',
-        hostUrl: row['FTP Host'] || domain,
-        username: row['FTP User'] || '',
-        password: row['FTP Pass'] || '',
-        updatedAt: new Date().toISOString().split('T')[0],
-      });
+    // Priority 2: Fallback to individual inline credential columns if credentials is empty
+    if (project.credentials.length === 0) {
+      if (row['WP Admin User'] || row['WP Admin Pass']) {
+        project.credentials.push({
+          id: `cred-inline-wp-${index}`,
+          category: 'wp_admin',
+          label: 'WordPress Admin',
+          hostUrl: row['WP Admin URL'] || `https://${domain}/wp-admin`,
+          username: row['WP Admin User'] || 'admin',
+          password: row['WP Admin Pass'] || '',
+          updatedAt: new Date().toISOString().split('T')[0],
+        });
+      }
+
+      if (row['FTP User'] || row['FTP Pass']) {
+        project.credentials.push({
+          id: `cred-inline-ftp-${index}`,
+          category: 'ftp_sftp',
+          label: 'FTP/SFTP Credentials',
+          hostUrl: row['FTP Host'] || domain,
+          username: row['FTP User'] || '',
+          password: row['FTP Pass'] || '',
+          updatedAt: new Date().toISOString().split('T')[0],
+        });
+      }
+
+      if (row['cPanel User'] || row['cPanel Pass']) {
+        project.credentials.push({
+          id: `cred-inline-cpanel-${index}`,
+          category: 'hosting_cpanel',
+          label: 'cPanel / Hosting Account',
+          hostUrl: row['cPanel Host'] || `https://${domain}:2083`,
+          username: row['cPanel User'] || '',
+          password: row['cPanel Pass'] || '',
+          updatedAt: new Date().toISOString().split('T')[0],
+        });
+      }
+
+      if (row['Database User'] || row['Database Pass']) {
+        project.credentials.push({
+          id: `cred-inline-db-${index}`,
+          category: 'database',
+          label: 'Database Access',
+          hostUrl: domain,
+          username: row['Database User'] || '',
+          password: row['Database Pass'] || '',
+          updatedAt: new Date().toISOString().split('T')[0],
+        });
+      }
     }
 
     clientsMap.set(id, project);
@@ -369,16 +429,20 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
     }
 
     if (targetClient) {
-      targetClient.credentials.push({
-        id: `cred-sheet2-${idx}`,
-        category: (credRow['Category'] as any) || 'custom',
-        label: credRow['Label / Title'] || credRow['Title'] || 'Login Credential',
-        hostUrl: credRow['Host / URL'] || credRow['URL'] || targetClient.domain,
-        username: credRow['Username'] || credRow['User'] || '',
-        password: credRow['Password / Key'] || credRow['Password'] || '',
-        notes: credRow['Notes'] || '',
-        updatedAt: credRow['Updated At'] || new Date().toISOString().split('T')[0],
-      });
+      const credId = credRow['ID'] || `cred-sheet2-${idx}`;
+      const exists = targetClient.credentials.some((c) => c.id === credId || (c.category === credRow['Category'] && c.username === credRow['Username']));
+      if (!exists) {
+        targetClient.credentials.push({
+          id: credId,
+          category: (credRow['Category'] as any) || 'custom',
+          label: credRow['Label / Title'] || credRow['Title'] || 'Login Credential',
+          hostUrl: credRow['Host / URL'] || credRow['URL'] || targetClient.domain,
+          username: credRow['Username'] || credRow['User'] || '',
+          password: credRow['Password / Key'] || credRow['Password'] || '',
+          notes: credRow['Notes'] || '',
+          updatedAt: credRow['Updated At'] || new Date().toISOString().split('T')[0],
+        });
+      }
     }
   });
 
