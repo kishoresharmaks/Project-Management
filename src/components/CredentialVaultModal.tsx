@@ -169,8 +169,19 @@ export const CredentialVaultModal: React.FC<CredentialVaultModalProps> = ({
                       <span className="font-mono text-slate-400">{cred.domain}</span>
                     </p>
 
-                    <div className="text-xs text-slate-300 font-mono pt-1">
-                      User: <span className="text-white font-semibold">{cred.username}</span>
+                    <div className="text-xs text-slate-300 font-mono pt-1 flex flex-wrap items-center gap-3">
+                      <span>User: <span className="text-white font-semibold">{cred.username}</span></span>
+                      {cred.hostUrl && (
+                        <a
+                          href={cred.hostUrl.startsWith('http') ? cred.hostUrl : `https://${cred.hostUrl}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-400 hover:underline font-mono text-[11px]"
+                          title="Open login URL"
+                        >
+                          {cred.hostUrl}
+                        </a>
+                      )}
                     </div>
                   </div>
 

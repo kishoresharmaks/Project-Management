@@ -62,6 +62,10 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
   const [newCredPass, setNewCredPass] = useState('');
   const [newCredNotes, setNewCredNotes] = useState('');
 
+  // Inline Credential Edit State
+  const [editingCredId, setEditingCredId] = useState<string | null>(null);
+  const [editCredData, setEditCredData] = useState<CredentialItem | null>(null);
+
   // New Task Form State
   const [newTaskTitle, setNewTaskTitle] = useState('');
 
@@ -70,6 +74,30 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
   }, [client]);
 
   if (!isOpen) return null;
+
+  const handleStartEditCred = (cred: CredentialItem) => {
+    setEditingCredId(cred.id);
+    setEditCredData({ ...cred });
+  };
+
+  const handleSaveEditCred = () => {
+    if (!editCredData || !editCredData.label.trim()) return;
+
+    const updatedCreds = formData.credentials.map((c) =>
+      c.id === editCredData.id ? { ...editCredData, updatedAt: new Date().toISOString().split('T')[0] } : c
+    );
+
+    const updatedClient: ClientProject = {
+      ...formData,
+      credentials: updatedCreds,
+      updatedAt: new Date().toISOString().split('T')[0],
+    };
+
+    setFormData(updatedClient);
+    onUpdateClient(updatedClient);
+    setEditingCredId(null);
+    setEditCredData(null);
+  };
 
   const togglePasswordReveal = (id: string) => {
     if (isPinLocked) {
@@ -657,7 +685,15 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
                       <label className="text-slate-400 block mb-1">Category</label>
                       <select
                         value={newCredCategory}
-                        onChange={(e) => setNewCredCategory(e.target.value as CredentialCategory)}
+                        onChange={(e) => {
+                          const cat = e.target.value as CredentialCategory;
+                          setNewCredCategory(cat);
+                          if (!newCredHost) {
+                            if (cat === 'wp_admin') setNewCredHost(`https://${formData.domain}/wp-admin`);
+                            else if (cat === 'hosting_cpanel') setNewCredHost(`https://${formData.domain}:2083`);
+                            else if (cat === 'ftp_sftp') setNewCredHost(`ftp.${formData.domain}`);
+                          }
+                        }}
                         className="w-full p-2 rounded-lg glass-input text-xs"
                       >
                         <option value="wp_admin">WordPress Admin</option>
@@ -682,14 +718,17 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label className="text-slate-400 block mb-1">Host / Login URL</label>
+                    <div className="sm:col-span-2">
+                      <label className="text-slate-400 block mb-1 flex items-center justify-between">
+                        <span>Host / Login URL (Customizable Link)</span>
+                        <span className="text-[10px] text-blue-400 font-normal">Editable URL</span>
+                      </label>
                       <input
                         type="text"
-                        placeholder="e.g. https://domain.com/wp-admin"
+                        placeholder={`e.g. https://${formData.domain}/wp-admin`}
                         value={newCredHost}
                         onChange={(e) => setNewCredHost(e.target.value)}
-                        className="w-full p-2 rounded-lg glass-input text-xs font-mono"
+                        className="w-full p-2 rounded-lg glass-input text-xs font-mono text-blue-300"
                       />
                     </div>
 
@@ -705,7 +744,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
                       />
                     </div>
 
-                    <div className="sm:col-span-2">
+                    <div>
                       <label className="text-slate-400 block mb-1">Password / Secret Key</label>
                       <input
                         type="password"
@@ -727,7 +766,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white"
+                      className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md"
                     >
                       Save Credential
                     </button>
@@ -744,6 +783,112 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
                 ) : (
                   formData.credentials.map((cred) => {
                     const isRevealed = Boolean(revealedCreds[cred.id]);
+                    const isEditingThis = editingCredId === cred.id && editCredData;
+
+                    if (isEditingThis && editCredData) {
+                      return (
+                        <form
+                          key={cred.id}
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            handleSaveEditCred();
+                          }}
+                          className="glass-card rounded-2xl p-4 border border-blue-500/50 bg-blue-950/20 space-y-3"
+                        >
+                          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                            <span className="text-xs font-bold text-blue-400">Edit Credential & Custom URL</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{cred.id}</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div>
+                              <label className="text-slate-400 block mb-1">Category</label>
+                              <select
+                                value={editCredData.category}
+                                onChange={(e) =>
+                                  setEditCredData({ ...editCredData, category: e.target.value as CredentialCategory })
+                                }
+                                className="w-full p-2 rounded-lg glass-input text-xs"
+                              >
+                                <option value="wp_admin">WordPress Admin</option>
+                                <option value="ftp_sftp">FTP / SFTP</option>
+                                <option value="hosting_cpanel">Hosting / CPanel</option>
+                                <option value="database">Database</option>
+                                <option value="dns">DNS / Cloudflare</option>
+                                <option value="api_key">API Key / Token</option>
+                                <option value="custom">Custom Login</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="text-slate-400 block mb-1">Label / Title *</label>
+                              <input
+                                type="text"
+                                value={editCredData.label}
+                                onChange={(e) => setEditCredData({ ...editCredData, label: e.target.value })}
+                                required
+                                className="w-full p-2 rounded-lg glass-input text-xs"
+                              />
+                            </div>
+
+                            <div className="sm:col-span-2">
+                              <label className="text-slate-400 block mb-1 flex items-center justify-between">
+                                <span>Host / Login URL (Custom Link)</span>
+                                <span className="text-[10px] text-emerald-400">Customizable</span>
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. https://beeshubfarmland.com/wp-admin"
+                                value={editCredData.hostUrl}
+                                onChange={(e) => setEditCredData({ ...editCredData, hostUrl: e.target.value })}
+                                className="w-full p-2 rounded-lg glass-input text-xs font-mono text-blue-300"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-slate-400 block mb-1">Username / Access Key *</label>
+                              <input
+                                type="text"
+                                value={editCredData.username}
+                                onChange={(e) => setEditCredData({ ...editCredData, username: e.target.value })}
+                                required
+                                className="w-full p-2 rounded-lg glass-input text-xs font-mono"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-slate-400 block mb-1">Password / Secret Key</label>
+                              <input
+                                type="text"
+                                value={editCredData.password}
+                                onChange={(e) => setEditCredData({ ...editCredData, password: e.target.value })}
+                                className="w-full p-2 rounded-lg glass-input text-xs font-mono"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-2 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCredId(null);
+                                setEditCredData(null);
+                              }}
+                              className="px-3 py-1.5 text-xs text-slate-400 hover:text-white"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-md flex items-center gap-1"
+                            >
+                              <Save className="w-3.5 h-3.5" /> Save Changes & Sync
+                            </button>
+                          </div>
+                        </form>
+                      );
+                    }
+
                     return (
                       <div
                         key={cred.id}
@@ -759,15 +904,18 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
 
                           <div className="text-xs text-slate-400 flex flex-wrap items-center gap-3 font-mono">
                             <span>User: <strong className="text-slate-200">{cred.username}</strong></span>
-                            {cred.hostUrl && (
+                            {cred.hostUrl ? (
                               <a
                                 href={cred.hostUrl.startsWith('http') ? cred.hostUrl : `https://${cred.hostUrl}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-blue-400 hover:underline text-[11px]"
+                                className="text-blue-400 hover:underline flex items-center gap-1 text-[11px] font-semibold"
+                                title="Click to open customizable link"
                               >
-                                {cred.hostUrl}
+                                {cred.hostUrl} <ExternalLink className="w-3 h-3" />
                               </a>
+                            ) : (
+                              <span className="text-slate-500 text-[11px]">(No URL configured)</span>
                             )}
                           </div>
                         </div>
@@ -807,9 +955,17 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
                           </button>
 
                           <button
+                            onClick={() => handleStartEditCred(cred)}
+                            className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600/40 text-slate-300 hover:text-blue-300 transition-colors"
+                            title="Edit Credential & Customizable URL"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+
+                          <button
                             onClick={() => handleDeleteCredential(cred.id)}
                             className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-400 transition-colors"
-                            title="Delete"
+                            title="Delete Credential"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
