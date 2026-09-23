@@ -63,8 +63,9 @@ To enable 2-way read and write sync with Google Sheets:
 
 ```javascript
 function doGet() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var rows = sheet.getDataRange().getValues();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var clientSheet = ss.getSheetByName('Clients Data') || ss.getSheets()[0];
+  var rows = clientSheet.getDataRange().getValues();
   return ContentService.createTextOutput(JSON.stringify(rows))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -72,10 +73,13 @@ function doGet() {
 function doPost(e) {
   try {
     var contents = JSON.parse(e.postData.contents);
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // 1. Update Clients Data Sheet (Main Overview Tab)
     if (contents.action === 'update_all' && contents.clients) {
-      sheet.clear();
+      var clientSheet = ss.getSheetByName('Clients Data') || ss.getSheets()[0];
+      clientSheet.clearContents();
+      
       var clients = contents.clients;
       if (clients.length > 0) {
         var headers = Object.keys(clients[0]);
@@ -83,13 +87,37 @@ function doPost(e) {
         for (var i = 0; i < clients.length; i++) {
           var row = [];
           for (var j = 0; j < headers.length; j++) {
-            row.push(clients[i][headers[j]] || '');
+            row.push(clients[i][headers[j]] !== undefined ? clients[i][headers[j]] : '');
           }
           data.push(row);
         }
-        sheet.getRange(1, 1, data.length, headers.length).setValues(data);
+        clientSheet.getRange(1, 1, data.length, headers.length).setValues(data);
+        clientSheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#f3f4f6');
       }
     }
+
+    // 2. Update Credentials Vault Sheet (2nd Vault Tab)
+    if (contents.credentials && contents.credentials.length > 0) {
+      var vaultSheet = ss.getSheetByName('Credentials Vault');
+      if (!vaultSheet) {
+        vaultSheet = ss.insertSheet('Credentials Vault');
+      }
+      vaultSheet.clearContents();
+
+      var creds = contents.credentials;
+      var credHeaders = Object.keys(creds[0]);
+      var credData = [credHeaders];
+      for (var k = 0; k < creds.length; k++) {
+        var credRow = [];
+        for (var m = 0; m < credHeaders.length; m++) {
+          credRow.push(creds[k][credHeaders[m]] !== undefined ? creds[k][credHeaders[m]] : '');
+        }
+        credData.push(credRow);
+      }
+      vaultSheet.getRange(1, 1, credData.length, credHeaders.length).setValues(credData);
+      vaultSheet.getRange(1, 1, 1, credHeaders.length).setFontWeight('bold').setBackground('#e0e7ff');
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ status: 'success' }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
