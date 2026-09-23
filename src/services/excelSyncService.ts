@@ -49,7 +49,6 @@ function clientsToOverviewRows(clients: ClientProject[]) {
       'Domain Renewal': c.domainRenewalDate || '',
       'Billing Frequency': c.billingFrequency || 'monthly',
       'Project Cost (₹)': c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0),
-      'Monthly Retainer ($)': c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0),
       'WP Admin URL': wpCred ? wpCred.hostUrl : `https://${c.domain}/wp-admin`,
       'WP Admin User': wpCred ? wpCred.username : '',
       'WP Admin Pass': wpCred ? wpCred.password : '',

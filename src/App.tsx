@@ -24,6 +24,7 @@ import {
   pushFullDatabaseToOnlineSheet,
 } from './services/excelSyncService';
 import type { ClientProject, SheetSyncConfig } from './types/client';
+import { formatRupees } from './types/client';
 import {
   Check,
   ShieldAlert,
@@ -31,7 +32,7 @@ import {
   Globe,
   Table as TableIcon,
   Activity,
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   CheckCircle2,
   Clock,
@@ -233,7 +234,26 @@ export function App() {
   }).length;
 
   // Analytics Metrics for Dashboard Overview
-  const totalRetainer = clients.reduce((sum, c) => sum + (c.monthlyRetainer || 0), 0);
+  const monthlyRecurringRev = clients.reduce((sum, c) => {
+    const cost = c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0);
+    const freq = c.billingFrequency || 'monthly';
+    if (freq === 'monthly') return sum + cost;
+    if (freq === 'yearly') return sum + Math.round(cost / 12);
+    return sum;
+  }, 0);
+
+  const oneTimeFees = clients.reduce((sum, c) => {
+    const cost = c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0);
+    const freq = c.billingFrequency || 'monthly';
+    if (freq === 'one_time') return sum + cost;
+    return sum;
+  }, 0);
+
+  const totalPortfolioValue = clients.reduce((sum, c) => {
+    const cost = c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0);
+    return sum + cost;
+  }, 0);
+
   const activeCount = clients.filter((c) => c.status === 'active').length;
   const inDevCount = clients.filter((c) => c.status === 'in_development').length;
   const carePlanCount = clients.filter((c) => c.status === 'maintenance').length;
@@ -391,28 +411,45 @@ export function App() {
                   </div>
                 </div>
 
-                {/* Recurring Revenue Metric */}
+                {/* Financial Summary Metric */}
                 <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-emerald-400" /> Financial Summary
+                      <IndianRupee className="w-4 h-4 text-emerald-400" /> Financial Summary
                     </h3>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/30">
-                    <span className="text-xs text-slate-400 block mb-1">Monthly Recurring Retainers</span>
-                    <span className="text-3xl font-extrabold text-emerald-400 tracking-tight">
-                      ${totalRetainer.toLocaleString()}
-                    </span>
-                    <span className="text-xs text-slate-400 block mt-1">
-                      Annualized: ${(totalRetainer * 12).toLocaleString()} / year
-                    </span>
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/30 space-y-2">
+                    <div>
+                      <span className="text-xs text-slate-400 block mb-0.5">Monthly Recurring Revenue (MRR)</span>
+                      <span className="text-2xl font-extrabold text-emerald-400 tracking-tight">
+                        {formatRupees(monthlyRecurringRev)}
+                        <span className="text-xs font-normal text-slate-400 ml-1">/mo</span>
+                      </span>
+                      <span className="text-[11px] text-slate-400 block mt-0.5">
+                        Annualized: {formatRupees(monthlyRecurringRev * 12)} / year
+                      </span>
+                    </div>
+
+                    {oneTimeFees > 0 && (
+                      <div className="pt-2 border-t border-emerald-500/20 flex justify-between items-center text-xs">
+                        <span className="text-slate-400">One-Time Project Fees:</span>
+                        <span className="font-bold text-emerald-300">{formatRupees(oneTimeFees)}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                    <span>Total Portfolio Value:</span>
+                    <span className="font-bold text-white">
+                      {formatRupees(totalPortfolioValue)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-slate-400 pt-0.5">
                     <span>Avg Retainer / Client:</span>
                     <span className="font-semibold text-slate-200">
-                      ${clients.length > 0 ? Math.round(totalRetainer / clients.length) : 0}/mo
+                      {clients.length > 0 ? formatRupees(Math.round(monthlyRecurringRev / clients.length)) : '₹0'}/mo
                     </span>
                   </div>
                 </div>

@@ -78,7 +78,7 @@ function doPost(e) {
     // 1. Update Clients Data Sheet (Main Overview Tab)
     if (contents.action === 'update_all' && contents.clients) {
       var clientSheet = ss.getSheetByName('Clients Data') || ss.getSheets()[0];
-      clientSheet.clearContents();
+      clientSheet.clear();
       
       var clients = contents.clients;
       if (clients.length > 0) {
@@ -102,7 +102,7 @@ function doPost(e) {
       if (!vaultSheet) {
         vaultSheet = ss.insertSheet('Credentials Vault');
       }
-      vaultSheet.clearContents();
+      vaultSheet.clear();
 
       var creds = contents.credentials;
       var credHeaders = Object.keys(creds[0]);
