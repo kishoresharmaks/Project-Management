@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { ClientProject, ProjectStatus, HealthStatus, SslStatus, BillingFrequency } from '../types/client';
+import type { ClientProject, ProjectStatus, HealthStatus, SslStatus, BillingFrequency, CredentialCategory } from '../types/client';
 
 // Initial empty clients list
 export const INITIAL_CLIENTS: ClientProject[] = [];
@@ -336,7 +336,7 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
     if (!clientName) return;
 
     const domain = row['Domain'] || row['Website'] || row['URL'] || `client-${index + 1}.com`;
-    const id = row['ID'] || `client-synced-${index + 1}`;
+    const id = row['ID'] || row['Client ID'] || `client-synced-${index + 1}`;
 
     const costVal = Number(row['Project Cost (₹)'] || row['Project Cost'] || row['Monthly Retainer ($)'] || row['Retainer'] || 0);
     const billingFrequency = mapBillingFrequency(row['Billing Frequency'] || row['Billing'] || row['Frequency']);
@@ -387,9 +387,33 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
       }
     }
 
-    // Priority 2: Fallback to individual inline credential columns if credentials is empty
-    if (project.credentials.length === 0) {
-      if (row['WP Admin User'] || row['WP Admin Pass']) {
+    // Priority 2: Extract direct row credentials (e.g. Username, Password / Key, Category, Host / URL)
+    if (row['Username'] || row['User'] || row['Password / Key'] || row['Password']) {
+      const cat = parseCredentialCategory(row['Category']);
+      const label = row['Label / Title'] || row['Label'] || row['Title'] || 'Admin Login';
+      const hostUrl = row['Host / URL'] || row['Host'] || row['URL'] || row['WP Admin URL'] || `https://${domain}/wp-admin`;
+      const username = row['Username'] || row['User'] || row['WP Admin User'] || '';
+      const password = row['Password / Key'] || row['Password'] || row['Pass'] || row['WP Admin Pass'] || '';
+      const notes = row['Notes'] || '';
+
+      if (username || password) {
+        project.credentials.push({
+          id: `cred-${id}-1`,
+          category: cat,
+          label,
+          hostUrl,
+          username,
+          password,
+          notes,
+          updatedAt: row['Updated At'] || new Date().toISOString().split('T')[0],
+        });
+      }
+    }
+
+    // Priority 3: Extract inline WP Admin / FTP / cPanel / DB columns
+    if (row['WP Admin User'] || row['WP Admin Pass']) {
+      const exists = project.credentials.some((c) => c.category === 'wp_admin');
+      if (!exists) {
         project.credentials.push({
           id: `cred-inline-wp-${index}`,
           category: 'wp_admin',
@@ -400,8 +424,11 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
           updatedAt: new Date().toISOString().split('T')[0],
         });
       }
+    }
 
-      if (row['FTP User'] || row['FTP Pass']) {
+    if (row['FTP User'] || row['FTP Pass']) {
+      const exists = project.credentials.some((c) => c.category === 'ftp_sftp');
+      if (!exists) {
         project.credentials.push({
           id: `cred-inline-ftp-${index}`,
           category: 'ftp_sftp',
@@ -412,8 +439,11 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
           updatedAt: new Date().toISOString().split('T')[0],
         });
       }
+    }
 
-      if (row['cPanel User'] || row['cPanel Pass']) {
+    if (row['cPanel User'] || row['cPanel Pass']) {
+      const exists = project.credentials.some((c) => c.category === 'hosting_cpanel');
+      if (!exists) {
         project.credentials.push({
           id: `cred-inline-cpanel-${index}`,
           category: 'hosting_cpanel',
@@ -424,8 +454,11 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
           updatedAt: new Date().toISOString().split('T')[0],
         });
       }
+    }
 
-      if (row['Database User'] || row['Database Pass']) {
+    if (row['Database User'] || row['Database Pass']) {
+      const exists = project.credentials.some((c) => c.category === 'database');
+      if (!exists) {
         project.credentials.push({
           id: `cred-inline-db-${index}`,
           category: 'database',
@@ -442,8 +475,8 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
   });
 
   credRows.forEach((credRow, idx) => {
-    const clientId = credRow['Client ID'];
-    const clientName = credRow['Client Name'];
+    const clientId = credRow['Client ID'] || credRow['ID'];
+    const clientName = credRow['Client Name'] || credRow['Client'];
     let targetClient: ClientProject | undefined;
 
     if (clientId && clientsMap.has(clientId)) {
@@ -454,15 +487,17 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
 
     if (targetClient) {
       const credId = credRow['ID'] || `cred-sheet2-${idx}`;
-      const exists = targetClient.credentials.some((c) => c.id === credId || (c.category === credRow['Category'] && c.username === credRow['Username']));
+      const cat = parseCredentialCategory(credRow['Category']);
+      const username = credRow['Username'] || credRow['User'] || '';
+      const exists = targetClient.credentials.some((c) => c.id === credId || (c.category === cat && c.username === username));
       if (!exists) {
         targetClient.credentials.push({
           id: credId,
-          category: (credRow['Category'] as any) || 'custom',
-          label: credRow['Label / Title'] || credRow['Title'] || 'Login Credential',
-          hostUrl: credRow['Host / URL'] || credRow['URL'] || targetClient.domain,
-          username: credRow['Username'] || credRow['User'] || '',
-          password: credRow['Password / Key'] || credRow['Password'] || '',
+          category: cat,
+          label: credRow['Label / Title'] || credRow['Label'] || credRow['Title'] || 'Login Credential',
+          hostUrl: credRow['Host / URL'] || credRow['Host'] || credRow['URL'] || targetClient.domain,
+          username,
+          password: credRow['Password / Key'] || credRow['Password'] || credRow['Pass'] || '',
           notes: credRow['Notes'] || '',
           updatedAt: credRow['Updated At'] || new Date().toISOString().split('T')[0],
         });
@@ -505,4 +540,16 @@ function mapBillingFrequency(val: any): BillingFrequency {
   if (str.includes('year') || str.includes('annual')) return 'yearly';
   if (str.includes('one') || str.includes('single') || str.includes('fixed')) return 'one_time';
   return 'monthly';
+}
+
+function parseCredentialCategory(val: any): CredentialCategory {
+  if (!val) return 'wp_admin';
+  const str = String(val).toLowerCase().trim();
+  if (str.includes('wp') || str.includes('word') || str.includes('admin')) return 'wp_admin';
+  if (str.includes('ftp') || str.includes('sftp')) return 'ftp_sftp';
+  if (str.includes('cpanel') || str.includes('host') || str.includes('panel')) return 'hosting_cpanel';
+  if (str.includes('data') || str.includes('db') || str.includes('sql')) return 'database';
+  if (str.includes('dns') || str.includes('cloud')) return 'dns';
+  if (str.includes('api') || str.includes('key') || str.includes('token')) return 'api_key';
+  return 'custom';
 }
