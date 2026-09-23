@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Plus, Globe, Server, User, Mail, DollarSign } from 'lucide-react';
-import type { ClientProject, ProjectStatus } from '../types/client';
+import { X, Plus, Globe, Server, User, Mail, IndianRupee } from 'lucide-react';
+import type { ClientProject, ProjectStatus, BillingFrequency } from '../types/client';
 
 interface AddClientModalProps {
   isOpen: boolean;
@@ -16,7 +16,8 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose,
   const [status, setStatus] = useState<ProjectStatus>('active');
   const [cmsFramework, setCmsFramework] = useState('WordPress 6.6');
   const [hostingProvider, setHostingProvider] = useState('SiteGround / Cloud');
-  const [monthlyRetainer, setMonthlyRetainer] = useState<number>(500);
+  const [billingFrequency, setBillingFrequency] = useState<BillingFrequency>('monthly');
+  const [projectCost, setProjectCost] = useState<number>(15000);
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [wpUser, setWpUser] = useState('');
@@ -38,7 +39,9 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose,
       healthStatus: 'online',
       cmsFramework,
       hostingProvider,
-      monthlyRetainer,
+      billingFrequency,
+      projectCost,
+      monthlyRetainer: projectCost,
       primaryContact: {
         name: contactName || 'Primary Contact',
         email: contactEmail || '',
@@ -166,14 +169,28 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose,
             </div>
 
             <div>
+              <label className="text-slate-400 block mb-1">Billing Cycle</label>
+              <select
+                value={billingFrequency}
+                onChange={(e) => setBillingFrequency(e.target.value as BillingFrequency)}
+                className="w-full p-2.5 rounded-xl glass-input"
+              >
+                <option value="monthly">Monthly Retainer</option>
+                <option value="yearly">Yearly Contract</option>
+                <option value="one_time">One-Time Project Fee</option>
+              </select>
+            </div>
+
+            <div>
               <label className="text-slate-400 block mb-1 flex items-center gap-1">
-                <DollarSign className="w-3.5 h-3.5 text-emerald-400" /> Monthly Retainer ($)
+                <IndianRupee className="w-3.5 h-3.5 text-emerald-400" /> Project Cost (₹)
               </label>
               <input
                 type="number"
-                value={monthlyRetainer}
-                onChange={(e) => setMonthlyRetainer(Number(e.target.value))}
-                className="w-full p-2.5 rounded-xl glass-input"
+                placeholder="Cost in Rupees (₹)"
+                value={projectCost}
+                onChange={(e) => setProjectCost(Number(e.target.value))}
+                className="w-full p-2.5 rounded-xl glass-input font-bold text-emerald-400"
               />
             </div>
 

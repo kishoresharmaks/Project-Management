@@ -1,6 +1,7 @@
 export type ProjectStatus = 'active' | 'in_development' | 'maintenance' | 'paused' | 'archived';
 export type HealthStatus = 'online' | 'warning' | 'offline' | 'checking';
 export type SslStatus = 'active' | 'expiring_soon' | 'expired' | 'none';
+export type BillingFrequency = 'monthly' | 'yearly' | 'one_time';
 
 export type CredentialCategory =
   | 'wp_admin'
@@ -46,7 +47,9 @@ export interface ClientProject {
   sslStatus: SslStatus;
   sslExpiryDate?: string;
   domainRenewalDate?: string;
-  monthlyRetainer?: number; // e.g. 500 ($)
+  billingFrequency?: BillingFrequency; // 'monthly' | 'yearly' | 'one_time'
+  projectCost?: number; // Amount in Rupees (₹)
+  monthlyRetainer?: number; // legacy alias for monthly cost in ₹
   primaryContact: {
     name: string;
     email: string;
@@ -60,6 +63,17 @@ export interface ClientProject {
   lastSyncDate?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export function formatRupees(amount: number = 0): string {
+  return `₹${Number(amount || 0).toLocaleString('en-IN')}`;
+}
+
+export function formatBillingDisplay(cost: number = 0, frequency: BillingFrequency = 'monthly'): string {
+  const formatted = formatRupees(cost);
+  if (frequency === 'monthly') return `${formatted}/mo`;
+  if (frequency === 'yearly') return `${formatted}/yr`;
+  return `${formatted} (One-Time)`;
 }
 
 export interface SheetSyncConfig {

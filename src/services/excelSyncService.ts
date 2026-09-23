@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { ClientProject, ProjectStatus, HealthStatus, SslStatus } from '../types/client';
+import type { ClientProject, ProjectStatus, HealthStatus, SslStatus, BillingFrequency } from '../types/client';
 
 // Initial empty clients list
 export const INITIAL_CLIENTS: ClientProject[] = [];
@@ -41,7 +41,9 @@ function clientsToOverviewRows(clients: ClientProject[]) {
     'SSL Status': c.sslStatus,
     'SSL Expiry': c.sslExpiryDate || '',
     'Domain Renewal': c.domainRenewalDate || '',
-    'Monthly Retainer ($)': c.monthlyRetainer || 0,
+    'Billing Frequency': c.billingFrequency || 'monthly',
+    'Project Cost (₹)': c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0),
+    'Monthly Retainer ($)': c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0),
     'Contact Name': c.primaryContact.name,
     'Contact Email': c.primaryContact.email,
     'Contact Phone': c.primaryContact.phone || '',
@@ -292,6 +294,9 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
     const domain = row['Domain'] || row['Website'] || row['URL'] || `client-${index + 1}.com`;
     const id = row['ID'] || `client-synced-${index + 1}`;
 
+    const costVal = Number(row['Project Cost (₹)'] || row['Project Cost'] || row['Monthly Retainer ($)'] || row['Retainer'] || 0);
+    const billingFrequency = mapBillingFrequency(row['Billing Frequency'] || row['Billing'] || row['Frequency']);
+
     const project: ClientProject = {
       id,
       clientName,
@@ -307,7 +312,9 @@ function convertRawRowsToClients(rows: Record<string, any>[], credRows: Record<s
       sslStatus: mapSslStatus(row['SSL Status'] || row['SSL']),
       sslExpiryDate: row['SSL Expiry'] || '',
       domainRenewalDate: row['Domain Renewal'] || row['Renewal Date'] || '',
-      monthlyRetainer: Number(row['Monthly Retainer ($)'] || row['Retainer'] || 0),
+      billingFrequency,
+      projectCost: costVal,
+      monthlyRetainer: costVal,
       primaryContact: {
         name: row['Contact Name'] || row['Contact'] || 'Primary Contact',
         email: row['Contact Email'] || row['Email'] || '',
@@ -402,4 +409,12 @@ function mapSslStatus(val: any): SslStatus {
   if (str.includes('soon') || str.includes('warn')) return 'expiring_soon';
   if (str.includes('expir') || str.includes('no') || str.includes('fail')) return 'expired';
   return 'active';
+}
+
+function mapBillingFrequency(val: any): BillingFrequency {
+  if (!val) return 'monthly';
+  const str = String(val).toLowerCase();
+  if (str.includes('year') || str.includes('annual')) return 'yearly';
+  if (str.includes('one') || str.includes('single') || str.includes('fixed')) return 'one_time';
+  return 'monthly';
 }

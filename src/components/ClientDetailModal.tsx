@@ -17,12 +17,20 @@ import {
   User,
   Mail,
   Phone,
-  DollarSign,
+  IndianRupee,
   Save,
   Lock,
   Edit3,
 } from 'lucide-react';
-import type { ClientProject, CredentialCategory, CredentialItem, ProjectTask, ProjectStatus } from '../types/client';
+import type {
+  ClientProject,
+  CredentialCategory,
+  CredentialItem,
+  ProjectTask,
+  ProjectStatus,
+  BillingFrequency,
+} from '../types/client';
+import { formatBillingDisplay } from '../types/client';
 
 interface ClientDetailModalProps {
   client: ClientProject;
@@ -485,22 +493,47 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
                   )}
                 </div>
 
-                {/* Monthly Retainer */}
+                {/* Project Cost & Billing Cycle (Rupees) */}
                 <div className="glass-card rounded-2xl p-4">
                   <span className="text-xs text-slate-400 flex items-center gap-1 mb-1">
-                    <DollarSign className="w-3.5 h-3.5 text-emerald-400" /> Monthly Retainer
+                    <IndianRupee className="w-3.5 h-3.5 text-emerald-400" /> Project Cost & Billing (₹)
                   </span>
                   {isEditing ? (
-                    <input
-                      type="number"
-                      value={formData.monthlyRetainer || 0}
-                      onChange={(e) => setFormData({ ...formData, monthlyRetainer: Number(e.target.value) })}
-                      className="w-full text-xs p-2 rounded-lg glass-input font-bold text-emerald-400"
-                    />
+                    <div className="space-y-2">
+                      <select
+                        value={formData.billingFrequency || 'monthly'}
+                        onChange={(e) =>
+                          setFormData({ ...formData, billingFrequency: e.target.value as BillingFrequency })
+                        }
+                        className="w-full text-xs p-2 rounded-lg glass-input capitalize"
+                      >
+                        <option value="monthly">Monthly Retainer</option>
+                        <option value="yearly">Yearly Care Plan</option>
+                        <option value="one_time">One-Time Project Fee</option>
+                      </select>
+                      <input
+                        type="number"
+                        placeholder="Cost in ₹"
+                        value={formData.projectCost !== undefined ? formData.projectCost : (formData.monthlyRetainer || 0)}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setFormData({ ...formData, projectCost: val, monthlyRetainer: val });
+                        }}
+                        className="w-full text-xs p-2 rounded-lg glass-input font-bold text-emerald-400"
+                      />
+                    </div>
                   ) : (
-                    <p className="text-sm font-bold text-emerald-400">
-                      ${formData.monthlyRetainer ? formData.monthlyRetainer.toLocaleString() : '0'}/mo
-                    </p>
+                    <div>
+                      <p className="text-sm font-bold text-emerald-400">
+                        {formatBillingDisplay(
+                          formData.projectCost !== undefined ? formData.projectCost : (formData.monthlyRetainer || 0),
+                          formData.billingFrequency || 'monthly'
+                        )}
+                      </p>
+                      <p className="text-[10px] text-slate-400 capitalize mt-0.5">
+                        {(formData.billingFrequency || 'monthly').replace('_', ' ')} basis
+                      </p>
+                    </div>
                   )}
                 </div>
 

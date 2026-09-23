@@ -1,6 +1,7 @@
 import React from 'react';
-import { Globe, DollarSign, Activity, ShieldAlert, Key, CheckCircle2 } from 'lucide-react';
+import { Globe, Activity, ShieldAlert, Key, CheckCircle2, IndianRupee } from 'lucide-react';
 import type { ClientProject } from '../types/client';
+import { formatRupees } from '../types/client';
 
 interface DashboardStatsProps {
   clients: ClientProject[];
@@ -10,7 +11,20 @@ interface DashboardStatsProps {
 export const DashboardStats: React.FC<DashboardStatsProps> = ({ clients, onSelectFilter }) => {
   const totalProjects = clients.length;
 
-  const totalMonthlyRetainer = clients.reduce((sum, c) => sum + (c.monthlyRetainer || 0), 0);
+  // Calculate monthly recurring revenue (monthly retainer or projectCost if monthly)
+  const monthlyRevenue = clients.reduce((sum, c) => {
+    const cost = c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0);
+    const freq = c.billingFrequency || 'monthly';
+    if (freq === 'monthly') return sum + cost;
+    if (freq === 'yearly') return sum + Math.round(cost / 12);
+    return sum;
+  }, 0);
+
+  // Total value across all project contracts
+  const totalPortfolioValue = clients.reduce((sum, c) => {
+    const cost = c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || 0);
+    return sum + cost;
+  }, 0);
 
   const onlineCount = clients.filter((c) => c.healthStatus === 'online').length;
   const healthRate = totalProjects > 0 ? Math.round((onlineCount / totalProjects) * 100) : 100;
@@ -43,21 +57,21 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ clients, onSelec
         <p className="text-[11px] text-slate-500 mt-1">Websites under management</p>
       </div>
 
-      {/* Monthly Retainers Card */}
+      {/* Monthly Recurring Revenue in Rupees (₹) Card */}
       <div className="glass-card rounded-2xl p-4 transition-all">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-slate-400">Monthly Retainer</span>
-          <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
-            <DollarSign className="w-4 h-4" />
+          <span className="text-xs font-medium text-slate-400">Monthly Revenue (₹)</span>
+          <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 font-bold text-xs">
+            <IndianRupee className="w-4 h-4" />
           </div>
         </div>
         <div className="flex items-baseline gap-1">
           <span className="text-2xl font-bold text-emerald-400 tracking-tight">
-            ${totalMonthlyRetainer.toLocaleString()}
+            {formatRupees(monthlyRevenue)}
           </span>
           <span className="text-xs text-slate-400">/mo</span>
         </div>
-        <p className="text-[11px] text-slate-500 mt-1">Recurring client retainer revenue</p>
+        <p className="text-[11px] text-slate-500 mt-1">Portfolio: {formatRupees(totalPortfolioValue)} total</p>
       </div>
 
       {/* Server Health Rate */}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ExternalLink, Copy, Check, ArrowUpDown, Key, Edit3, ShieldAlert } from 'lucide-react';
 import type { ClientProject } from '../types/client';
+import { formatBillingDisplay } from '../types/client';
 
 interface ClientTableViewProps {
   clients: ClientProject[];
@@ -74,7 +75,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({
               <th className="py-3 px-4">SSL Expiry</th>
               <th className="py-3 px-4 cursor-pointer hover:text-white" onClick={() => handleSort('monthlyRetainer')}>
                 <div className="flex items-center gap-1.5">
-                  <span>Retainer</span>
+                  <span>Project Cost (₹)</span>
                   <ArrowUpDown className="w-3 h-3 text-slate-500" />
                 </div>
               </th>
@@ -91,6 +92,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({
               </tr>
             ) : (
               sortedClients.map((client) => {
+                const costVal = client.projectCost !== undefined ? client.projectCost : (client.monthlyRetainer || 0);
                 return (
                   <tr
                     key={client.id}
@@ -186,9 +188,9 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({
                       )}
                     </td>
 
-                    {/* Monthly Retainer */}
+                    {/* Project Cost (₹) */}
                     <td className="py-3 px-4 font-semibold text-emerald-400">
-                      {client.monthlyRetainer ? `$${client.monthlyRetainer}` : '-'}
+                      {formatBillingDisplay(costVal, client.billingFrequency || 'monthly')}
                     </td>
 
                     {/* Credentials Count */}
