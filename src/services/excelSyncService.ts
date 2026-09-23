@@ -154,12 +154,17 @@ export async function fetchAndParseOnlineSheetUrl(sheetUrlOverride?: string): Pr
   const envCustomEndpoint = import.meta.env.VITE_CUSTOM_API_ENDPOINT;
   const envUrl = import.meta.env.VITE_SHEET_SYNC_URL;
 
-  // PRIORITY 1: Custom API Endpoint (Google Apps Script Web App / SheetDB) - 2-Way Sync
-  if (!sheetUrlOverride && envCustomEndpoint) {
+  // PRIORITY 1: Custom Apps Script Web App Endpoint (2-Way Sync)
+  const scriptEndpoint =
+    (sheetUrlOverride && sheetUrlOverride.includes('script.google.com'))
+      ? sheetUrlOverride
+      : envCustomEndpoint;
+
+  if (scriptEndpoint) {
     try {
-      return await fetchCustomJsonEndpoint(envCustomEndpoint);
+      return await fetchCustomJsonEndpoint(scriptEndpoint);
     } catch (err) {
-      console.warn('Custom API Endpoint fetch failed, attempting backup sync methods...', err);
+      console.warn('Custom Apps Script Endpoint fetch failed, attempting backup endpoints...', err);
     }
   }
 
@@ -181,7 +186,14 @@ export async function fetchAndParseOnlineSheetUrl(sheetUrlOverride?: string): Pr
   let targetUrl = (sheetUrlOverride || envUrl || '').trim();
 
   if (!targetUrl) {
+    if (envCustomEndpoint) {
+      return await fetchCustomJsonEndpoint(envCustomEndpoint);
+    }
     throw new Error('No Online Sheet configured. Please set VITE_CUSTOM_API_ENDPOINT or VITE_SHEET_SYNC_URL in .env');
+  }
+
+  if (targetUrl.includes('script.google.com')) {
+    return await fetchCustomJsonEndpoint(targetUrl);
   }
 
   // Format Google Sheet URLs to CSV format if required
@@ -197,25 +209,37 @@ export async function fetchAndParseOnlineSheetUrl(sheetUrlOverride?: string): Pr
     ? `${targetUrl}&_t=${Date.now()}`
     : `${targetUrl}?_t=${Date.now()}`;
 
-  const response = await fetch(cacheBustUrl, {
-    method: 'GET',
-    referrerPolicy: 'no-referrer',
-    headers: {
-      'Accept': 'text/csv, application/json, text/plain, */*',
-    },
-  });
+  try {
+    const response = await fetch(cacheBustUrl, {
+      method: 'GET',
+      referrerPolicy: 'no-referrer',
+      headers: {
+        'Accept': 'text/csv, application/json, text/plain, */*',
+      },
+    });
 
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      throw new Error('Sheet is PRIVATE (HTTP 401/403). Share Google Sheet as "Anyone with link can view" or use Google Apps Script URL.');
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        if (envCustomEndpoint) {
+          return await fetchCustomJsonEndpoint(envCustomEndpoint);
+        }
+        throw new Error(
+          'Google Sheet is PRIVATE (HTTP 401/403). Set Google Sheet Share setting to "Anyone with the link can view", OR use your deployed Google Apps Script Web App URL.'
+        );
+      }
+      throw new Error(`Failed to fetch online sheet. Server status: ${response.status} ${response.statusText}`);
     }
-    throw new Error(`Failed to fetch online sheet. Server status: ${response.status} ${response.statusText}`);
+
+    const text = await response.text();
+    const workbook = XLSX.read(text, { type: 'string' });
+
+    return parseWorkbook(workbook);
+  } catch (err: any) {
+    if (envCustomEndpoint) {
+      return await fetchCustomJsonEndpoint(envCustomEndpoint);
+    }
+    throw err;
   }
-
-  const text = await response.text();
-  const workbook = XLSX.read(text, { type: 'string' });
-
-  return parseWorkbook(workbook);
 }
 
 /**

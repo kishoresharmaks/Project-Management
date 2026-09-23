@@ -44,7 +44,7 @@ export function saveClientsToStorage(clients: ClientProject[]): void {
 export function loadSyncConfig(): SheetSyncConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SYNC_CONFIG);
-    const envUrl = import.meta.env.VITE_SHEET_SYNC_URL;
+    const envUrl = import.meta.env.VITE_CUSTOM_API_ENDPOINT || import.meta.env.VITE_SHEET_SYNC_URL;
     const envInterval = Number(import.meta.env.VITE_AUTO_SYNC_INTERVAL_SEC || 10);
 
     if (!raw) {
