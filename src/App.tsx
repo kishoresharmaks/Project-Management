@@ -282,6 +282,7 @@ export function App() {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         syncConfig={syncConfig}
+        onTriggerSync={() => performLiveSheetSync(syncConfig.sheetUrl, false)}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
         onOpenAddClientModal={() => setIsAddClientModalOpen(true)}
         onOpenVaultModal={() => setIsVaultModalOpen(true)}
