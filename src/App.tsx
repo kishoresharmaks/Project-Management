@@ -10,6 +10,7 @@ import { CredentialVaultModal } from './components/CredentialVaultModal';
 import { SheetSyncModal } from './components/SheetSyncModal';
 import { AddClientModal } from './components/AddClientModal';
 import { MasterPinModal } from './components/MasterPinModal';
+import { PortalLockScreen } from './components/PortalLockScreen';
 import {
   loadClientsFromStorage,
   saveClientsToStorage,
@@ -40,6 +41,11 @@ import {
 } from 'lucide-react';
 
 export function App() {
+  // Session Authentication State (Expires when tab/browser is closed)
+  const [isPortalUnlocked, setIsPortalUnlocked] = useState<boolean>(() => {
+    return sessionStorage.getItem('clientpulse_session_unlocked') === 'true';
+  });
+
   const [clients, setClients] = useState<ClientProject[]>([]);
   const [syncConfig, setSyncConfig] = useState<SheetSyncConfig>(DEFAULT_CONFIG);
   const [activeTab, setActiveTab] = useState<MainTab>('overview');
@@ -68,8 +74,21 @@ export function App() {
     }, 3000);
   };
 
-  // 1. Initial Load & Setup
+  const handlePortalUnlock = () => {
+    sessionStorage.setItem('clientpulse_session_unlocked', 'true');
+    setIsPortalUnlocked(true);
+    triggerToast('Session Unlocked! Welcome to ClientPulse');
+  };
+
+  const handlePortalLock = () => {
+    sessionStorage.removeItem('clientpulse_session_unlocked');
+    setIsPortalUnlocked(false);
+  };
+
+  // 1. Initial Load & Setup (Only fetch if session unlocked)
   useEffect(() => {
+    if (!isPortalUnlocked) return;
+
     const loadedClients = loadClientsFromStorage();
     setClients(loadedClients);
 
@@ -77,10 +96,12 @@ export function App() {
     setSyncConfig(loadedConfig);
 
     performLiveSheetSync(loadedConfig.sheetUrl);
-  }, []);
+  }, [isPortalUnlocked]);
 
   // 2. Real-time Auto-Sync Polling Interval Loop
   useEffect(() => {
+    if (!isPortalUnlocked) return;
+
     if (pollingTimerRef.current) {
       clearInterval(pollingTimerRef.current);
     }
@@ -97,7 +118,7 @@ export function App() {
         clearInterval(pollingTimerRef.current);
       }
     };
-  }, [syncConfig.sheetUrl, syncConfig.autoSyncIntervalMinutes]);
+  }, [isPortalUnlocked, syncConfig.sheetUrl, syncConfig.autoSyncIntervalMinutes]);
 
   const performLiveSheetSync = async (sheetUrl?: string, isSilent = false) => {
     try {
@@ -177,6 +198,11 @@ export function App() {
     triggerToast(`Copied ${label} to clipboard!`);
   };
 
+  // If Session is Locked, Show Fullscreen Lock Gatekeeper
+  if (!isPortalUnlocked) {
+    return <PortalLockScreen onUnlockSuccess={handlePortalUnlock} />;
+  }
+
   // Filtered Clients Logic
   const filteredClients = clients.filter((c) => {
     const q = searchQuery.toLowerCase();
@@ -215,7 +241,6 @@ export function App() {
   const warningCount = clients.filter((c) => c.healthStatus === 'warning').length;
   const offlineCount = clients.filter((c) => c.healthStatus === 'offline').length;
 
-  // All pending tasks across clients
   const allPendingTasks = clients.flatMap((c) =>
     c.tasks
       .filter((t) => t.status !== 'completed')
@@ -242,7 +267,7 @@ export function App() {
         onOpenVaultModal={() => setIsVaultModalOpen(true)}
         onExportExcel={handleExportExcel}
         isPinLocked={isPinLocked}
-        onTogglePinLock={() => setIsPinModalOpen(true)}
+        onTogglePinLock={handlePortalLock}
         totalClientsCount={clients.length}
       />
 
@@ -258,7 +283,7 @@ export function App() {
 
         {/* Dynamic Main Section */}
         <main className="flex-1 flex flex-col min-w-0">
-          {/* TAB 1: DASHBOARD OVERVIEW (Executive Analytics Page) */}
+          {/* TAB 1: DASHBOARD OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* Top KPI Metrics Cards */}
@@ -465,7 +490,7 @@ export function App() {
             </div>
           )}
 
-          {/* TAB 2: WEBSITE PROJECTS PAGE (Dedicated Projects Listing) */}
+          {/* TAB 2: WEBSITE PROJECTS PAGE */}
           {activeTab === 'projects' && (
             <>
               {/* Header Title & Controls */}
