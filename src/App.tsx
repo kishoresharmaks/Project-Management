@@ -11,6 +11,7 @@ import { SheetSyncModal } from './components/SheetSyncModal';
 import { AddClientModal } from './components/AddClientModal';
 import { MasterPinModal } from './components/MasterPinModal';
 import { PortalLockScreen } from './components/PortalLockScreen';
+import { DomainMonitorView } from './components/DomainMonitorView';
 import {
   loadClientsFromStorage,
   saveClientsToStorage,
@@ -27,7 +28,6 @@ import type { ClientProject, SheetSyncConfig } from './types/client';
 import { formatRupees } from './types/client';
 import {
   Check,
-  ShieldAlert,
   Key,
   Globe,
   Table as TableIcon,
@@ -725,56 +725,15 @@ export function App() {
 
           {/* TAB 5: DOMAIN & SSL MONITOR */}
           {activeTab === 'domains' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-amber-400" /> Domain Renewal & SSL Certificate Monitor
-                  </h2>
-                  <p className="text-xs text-slate-400">Track SSL expiration dates and domain renewals</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {clients.map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => {
-                      setSelectedClient(c);
-                      setIsDetailModalOpen(true);
-                    }}
-                    className="glass-card rounded-2xl p-4 cursor-pointer hover:border-amber-500/40"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-bold text-white text-sm">{c.clientName}</h3>
-                      <span className="font-mono text-xs text-slate-400">{c.domain}</span>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs text-slate-300">
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">SSL Certificate:</span>
-                        <span
-                          className={
-                            c.sslStatus === 'expiring_soon'
-                              ? 'text-amber-400 font-bold'
-                              : c.sslStatus === 'expired'
-                              ? 'text-rose-400 font-bold'
-                              : 'text-emerald-400'
-                          }
-                        >
-                          {c.sslExpiryDate || 'Active'}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Domain Renewal:</span>
-                        <span className="font-semibold text-slate-200">{c.domainRenewalDate || 'N/A'}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <DomainMonitorView
+              clients={clients}
+              onOpenDetailModal={(c) => {
+                setSelectedClient(c);
+                setIsDetailModalOpen(true);
+              }}
+              onCopyText={handleCopyText}
+              onUpdateClientStatus={(updated) => handleSingleClientUpdate(updated)}
+            />
           )}
 
           {/* TAB 6: ONLINE SHEET SYNC */}
