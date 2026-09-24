@@ -204,18 +204,43 @@ export function App() {
     return <PortalLockScreen onUnlockSuccess={handlePortalUnlock} />;
   }
 
-  // Filtered Clients Logic
+  // Filtered Clients Logic across all client properties
   const filteredClients = clients.filter((c) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
+    if (!searchQuery.trim()) return statusFilter === 'all' || c.status === statusFilter;
+
+    const q = searchQuery.toLowerCase().trim();
+
+    const matchesBasic =
       c.clientName.toLowerCase().includes(q) ||
       c.company.toLowerCase().includes(q) ||
       c.domain.toLowerCase().includes(q) ||
+      (c.stagingUrl && c.stagingUrl.toLowerCase().includes(q)) ||
       c.cmsFramework.toLowerCase().includes(q) ||
+      (c.phpNodeVersion && c.phpNodeVersion.toLowerCase().includes(q)) ||
       c.hostingProvider.toLowerCase().includes(q) ||
+      (c.serverIp && c.serverIp.toLowerCase().includes(q)) ||
+      (c.notes && c.notes.toLowerCase().includes(q)) ||
       c.tags.some((t) => t.toLowerCase().includes(q));
 
+    const matchesContact =
+      c.primaryContact.name.toLowerCase().includes(q) ||
+      c.primaryContact.email.toLowerCase().includes(q) ||
+      (c.primaryContact.phone && c.primaryContact.phone.toLowerCase().includes(q));
+
+    const matchesCreds = c.credentials.some(
+      (cred) =>
+        cred.label.toLowerCase().includes(q) ||
+        cred.username.toLowerCase().includes(q) ||
+        cred.category.toLowerCase().includes(q) ||
+        cred.hostUrl.toLowerCase().includes(q) ||
+        (cred.notes && cred.notes.toLowerCase().includes(q))
+    );
+
+    const matchesTasks = c.tasks.some((task) => task.title.toLowerCase().includes(q));
+
+    const matchesCost = String(c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || '')).includes(q);
+
+    const matchesSearch = matchesBasic || matchesContact || matchesCreds || matchesTasks || matchesCost;
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
 
     return matchesSearch && matchesStatus;
@@ -281,6 +306,9 @@ export function App() {
       <Header
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        clients={clients}
+        onSelectClient={(client) => setSelectedClient(client)}
+        onNavigateToTab={(tab) => setActiveTab(tab as MainTab)}
         syncConfig={syncConfig}
         onTriggerSync={() => performLiveSheetSync(syncConfig.sheetUrl, false)}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}

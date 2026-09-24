@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Search,
   Plus,
@@ -10,12 +10,18 @@ import {
   Download,
   Settings,
   X,
+  Key,
+  ChevronRight,
+  Cpu,
 } from 'lucide-react';
-import type { SheetSyncConfig } from '../types/client';
+import type { SheetSyncConfig, ClientProject } from '../types/client';
 
 interface HeaderProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  clients?: ClientProject[];
+  onSelectClient?: (client: ClientProject) => void;
+  onNavigateToTab?: (tab: string) => void;
   syncConfig: SheetSyncConfig;
   onTriggerSync: () => void;
   onOpenSyncModal: () => void;
@@ -30,6 +36,9 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   searchQuery,
   setSearchQuery,
+  clients = [],
+  onSelectClient,
+  onNavigateToTab,
   syncConfig,
   onTriggerSync,
   onOpenSyncModal,
@@ -41,9 +50,75 @@ export const Header: React.FC<HeaderProps> = ({
   totalClientsCount,
 }) => {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const [isDropdownFocused, setIsDropdownFocused] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
   const isSyncing = syncConfig.syncStatus === 'syncing';
   const hasSyncError = syncConfig.syncStatus === 'error';
   const isSyncSuccess = syncConfig.syncStatus === 'success';
+
+  const query = searchQuery.toLowerCase().trim();
+  const isSearchActive = query.length > 0;
+
+  // Filter clients for live search dropdown popup
+  const searchResults = isSearchActive
+    ? clients.filter((c) => {
+        const matchesBasic =
+          c.clientName.toLowerCase().includes(query) ||
+          c.company.toLowerCase().includes(query) ||
+          c.domain.toLowerCase().includes(query) ||
+          (c.stagingUrl && c.stagingUrl.toLowerCase().includes(query)) ||
+          c.cmsFramework.toLowerCase().includes(query) ||
+          (c.phpNodeVersion && c.phpNodeVersion.toLowerCase().includes(query)) ||
+          c.hostingProvider.toLowerCase().includes(query) ||
+          (c.serverIp && c.serverIp.toLowerCase().includes(query)) ||
+          (c.notes && c.notes.toLowerCase().includes(query)) ||
+          c.tags.some((t) => t.toLowerCase().includes(query));
+
+        const matchesContact =
+          c.primaryContact.name.toLowerCase().includes(query) ||
+          c.primaryContact.email.toLowerCase().includes(query) ||
+          (c.primaryContact.phone && c.primaryContact.phone.toLowerCase().includes(query));
+
+        const matchesCreds = c.credentials.some(
+          (cred) =>
+            cred.label.toLowerCase().includes(query) ||
+            cred.username.toLowerCase().includes(query) ||
+            cred.category.toLowerCase().includes(query) ||
+            cred.hostUrl.toLowerCase().includes(query) ||
+            (cred.notes && cred.notes.toLowerCase().includes(query))
+        );
+
+        const matchesTasks = c.tasks.some((task) => task.title.toLowerCase().includes(query));
+
+        return matchesBasic || matchesContact || matchesCreds || matchesTasks;
+      })
+    : [];
+
+  // Close search overlay dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setIsDropdownFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectResult = (client: ClientProject) => {
+    if (onSelectClient) {
+      onSelectClient(client);
+    }
+    setIsDropdownFocused(false);
+  };
+
+  const handleViewAllResults = () => {
+    if (onNavigateToTab) {
+      onNavigateToTab('projects');
+    }
+    setIsDropdownFocused(false);
+  };
 
   return (
     <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 px-4 lg:px-8 py-3 transition-all">
@@ -73,23 +148,119 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Desktop Search Bar */}
-          <div className="relative w-full max-w-sm hidden md:block mx-4">
+          {/* Desktop Search Bar with Live Spotlight Dropdown Overlay */}
+          <div ref={searchContainerRef} className="relative w-full max-w-sm hidden md:block mx-4">
             <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
             <input
               type="text"
               placeholder="Search clients, domains, credentials, stack..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-9 py-2 text-xs rounded-xl glass-input placeholder-slate-500 focus:outline-none focus:border-blue-500/50 transition-all"
+              onFocus={() => setIsDropdownFocused(true)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsDropdownFocused(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchResults.length > 0) {
+                  handleViewAllResults();
+                }
+                if (e.key === 'Escape') {
+                  setIsDropdownFocused(false);
+                }
+              }}
+              className="w-full pl-10 pr-9 py-2 text-xs rounded-xl glass-input placeholder-slate-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
+                className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 transition-colors"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
+            )}
+
+            {/* LIVE SPOTLIGHT SEARCH DROPDOWN OVERLAY */}
+            {isSearchActive && isDropdownFocused && (
+              <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-slate-950/95 backdrop-blur-2xl border border-slate-700/80 shadow-2xl rounded-2xl p-2 max-h-[70vh] overflow-y-auto animate-fadeIn">
+                <div className="px-3 py-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                  <span>Instant Match Results ({searchResults.length})</span>
+                  <span className="text-[10px] text-slate-500 font-mono">Press ESC to dismiss</span>
+                </div>
+
+                {searchResults.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    <p className="font-semibold text-slate-300">No matching records found for "{searchQuery}"</p>
+                    <p className="text-[11px] text-slate-500 mt-1">Try searching by Client name, Domain, WP Admin username, CMS, or Hosting provider.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1 py-1">
+                    {searchResults.map((client) => {
+                      const matchedCred = client.credentials.find(
+                        (cr) =>
+                          cr.label.toLowerCase().includes(query) ||
+                          cr.username.toLowerCase().includes(query) ||
+                          cr.category.toLowerCase().includes(query) ||
+                          cr.hostUrl.toLowerCase().includes(query)
+                      );
+
+                      return (
+                        <div
+                          key={client.id}
+                          onClick={() => handleSelectResult(client)}
+                          className="p-2.5 rounded-xl hover:bg-slate-800/80 cursor-pointer transition-colors border border-transparent hover:border-slate-700/60 flex items-center justify-between group"
+                        >
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold flex items-center justify-center text-xs shrink-0">
+                              {client.clientName.charAt(0)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors truncate">
+                                {client.clientName}
+                                <span className="text-[11px] font-mono text-slate-400 font-normal ml-2">
+                                  ({client.domain})
+                                </span>
+                              </p>
+
+                              {/* Highlighted matched property pill */}
+                              {matchedCred ? (
+                                <p className="text-[11px] text-indigo-300 flex items-center gap-1 font-mono mt-0.5 truncate">
+                                  <Key className="w-3 h-3 text-indigo-400 shrink-0" />
+                                  <span>
+                                    {matchedCred.label}: <strong className="text-white">{matchedCred.username || matchedCred.category}</strong>
+                                  </span>
+                                </p>
+                              ) : client.cmsFramework.toLowerCase().includes(query) || client.hostingProvider.toLowerCase().includes(query) ? (
+                                <p className="text-[11px] text-cyan-300 flex items-center gap-1 font-mono mt-0.5 truncate">
+                                  <Cpu className="w-3 h-3 text-cyan-400 shrink-0" />
+                                  <span>
+                                    Stack: {client.cmsFramework} &bull; {client.hostingProvider}
+                                  </span>
+                                </p>
+                              ) : (
+                                <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                                  Company: {client.company} &bull; Status: <span className="text-emerald-400 capitalize">{client.status}</span>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {searchResults.length > 0 && (
+                  <button
+                    onClick={handleViewAllResults}
+                    className="w-full mt-1 p-2 text-center text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl border border-blue-500/20 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span>View all {searchResults.length} matching projects in table view</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -103,7 +274,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
 
-          {/* Right Action Buttons */}
+          {/* Right Action Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar">
             {/* 1-CLICK INSTANT SYNC BUTTON */}
             <div className="flex items-center gap-0.5 rounded-xl bg-slate-900 border border-slate-800 p-0.5 shadow-sm">
