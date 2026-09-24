@@ -204,6 +204,9 @@ export function App() {
     return <PortalLockScreen onUnlockSuccess={handlePortalUnlock} />;
   }
 
+  // Safe string lowercasing helper to prevent TypeError on numeric or undefined values
+  const safeStr = (val: any) => String(val || '').toLowerCase();
+
   // Filtered Clients Logic across all client properties
   const filteredClients = clients.filter((c) => {
     if (!searchQuery.trim()) return statusFilter === 'all' || c.status === statusFilter;
@@ -211,34 +214,35 @@ export function App() {
     const q = searchQuery.toLowerCase().trim();
 
     const matchesBasic =
-      c.clientName.toLowerCase().includes(q) ||
-      c.company.toLowerCase().includes(q) ||
-      c.domain.toLowerCase().includes(q) ||
-      (c.stagingUrl && c.stagingUrl.toLowerCase().includes(q)) ||
-      c.cmsFramework.toLowerCase().includes(q) ||
-      (c.phpNodeVersion && c.phpNodeVersion.toLowerCase().includes(q)) ||
-      c.hostingProvider.toLowerCase().includes(q) ||
-      (c.serverIp && c.serverIp.toLowerCase().includes(q)) ||
-      (c.notes && c.notes.toLowerCase().includes(q)) ||
-      c.tags.some((t) => t.toLowerCase().includes(q));
+      safeStr(c.clientName).includes(q) ||
+      safeStr(c.company).includes(q) ||
+      safeStr(c.domain).includes(q) ||
+      safeStr(c.stagingUrl).includes(q) ||
+      safeStr(c.cmsFramework).includes(q) ||
+      safeStr(c.phpNodeVersion).includes(q) ||
+      safeStr(c.hostingProvider).includes(q) ||
+      safeStr(c.serverIp).includes(q) ||
+      safeStr(c.notes).includes(q) ||
+      (Array.isArray(c.tags) && c.tags.some((t) => safeStr(t).includes(q)));
 
+    const contact = c.primaryContact || {};
     const matchesContact =
-      c.primaryContact.name.toLowerCase().includes(q) ||
-      c.primaryContact.email.toLowerCase().includes(q) ||
-      (c.primaryContact.phone && c.primaryContact.phone.toLowerCase().includes(q));
+      safeStr(contact.name).includes(q) ||
+      safeStr(contact.email).includes(q) ||
+      safeStr(contact.phone).includes(q);
 
-    const matchesCreds = c.credentials.some(
+    const matchesCreds = Array.isArray(c.credentials) && c.credentials.some(
       (cred) =>
-        cred.label.toLowerCase().includes(q) ||
-        cred.username.toLowerCase().includes(q) ||
-        cred.category.toLowerCase().includes(q) ||
-        cred.hostUrl.toLowerCase().includes(q) ||
-        (cred.notes && cred.notes.toLowerCase().includes(q))
+        safeStr(cred.label).includes(q) ||
+        safeStr(cred.username).includes(q) ||
+        safeStr(cred.category).includes(q) ||
+        safeStr(cred.hostUrl).includes(q) ||
+        safeStr(cred.notes).includes(q)
     );
 
-    const matchesTasks = c.tasks.some((task) => task.title.toLowerCase().includes(q));
+    const matchesTasks = Array.isArray(c.tasks) && c.tasks.some((task) => safeStr(task.title).includes(q));
 
-    const matchesCost = String(c.projectCost !== undefined ? c.projectCost : (c.monthlyRetainer || '')).includes(q);
+    const matchesCost = safeStr(c.projectCost !== undefined ? c.projectCost : c.monthlyRetainer).includes(q);
 
     const matchesSearch = matchesBasic || matchesContact || matchesCreds || matchesTasks || matchesCost;
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter;

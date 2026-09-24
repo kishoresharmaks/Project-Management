@@ -57,6 +57,9 @@ export const Header: React.FC<HeaderProps> = ({
   const hasSyncError = syncConfig.syncStatus === 'error';
   const isSyncSuccess = syncConfig.syncStatus === 'success';
 
+  // Safe string lowercasing helper to prevent TypeError on numeric or undefined values
+  const safeStr = (val: any) => String(val || '').toLowerCase();
+
   const query = searchQuery.toLowerCase().trim();
   const isSearchActive = query.length > 0;
 
@@ -64,32 +67,33 @@ export const Header: React.FC<HeaderProps> = ({
   const searchResults = isSearchActive
     ? clients.filter((c) => {
         const matchesBasic =
-          c.clientName.toLowerCase().includes(query) ||
-          c.company.toLowerCase().includes(query) ||
-          c.domain.toLowerCase().includes(query) ||
-          (c.stagingUrl && c.stagingUrl.toLowerCase().includes(query)) ||
-          c.cmsFramework.toLowerCase().includes(query) ||
-          (c.phpNodeVersion && c.phpNodeVersion.toLowerCase().includes(query)) ||
-          c.hostingProvider.toLowerCase().includes(query) ||
-          (c.serverIp && c.serverIp.toLowerCase().includes(query)) ||
-          (c.notes && c.notes.toLowerCase().includes(query)) ||
-          c.tags.some((t) => t.toLowerCase().includes(query));
+          safeStr(c.clientName).includes(query) ||
+          safeStr(c.company).includes(query) ||
+          safeStr(c.domain).includes(query) ||
+          safeStr(c.stagingUrl).includes(query) ||
+          safeStr(c.cmsFramework).includes(query) ||
+          safeStr(c.phpNodeVersion).includes(query) ||
+          safeStr(c.hostingProvider).includes(query) ||
+          safeStr(c.serverIp).includes(query) ||
+          safeStr(c.notes).includes(query) ||
+          (Array.isArray(c.tags) && c.tags.some((t) => safeStr(t).includes(query)));
 
+        const contact = c.primaryContact || {};
         const matchesContact =
-          c.primaryContact.name.toLowerCase().includes(query) ||
-          c.primaryContact.email.toLowerCase().includes(query) ||
-          (c.primaryContact.phone && c.primaryContact.phone.toLowerCase().includes(query));
+          safeStr(contact.name).includes(query) ||
+          safeStr(contact.email).includes(query) ||
+          safeStr(contact.phone).includes(query);
 
-        const matchesCreds = c.credentials.some(
+        const matchesCreds = Array.isArray(c.credentials) && c.credentials.some(
           (cred) =>
-            cred.label.toLowerCase().includes(query) ||
-            cred.username.toLowerCase().includes(query) ||
-            cred.category.toLowerCase().includes(query) ||
-            cred.hostUrl.toLowerCase().includes(query) ||
-            (cred.notes && cred.notes.toLowerCase().includes(query))
+            safeStr(cred.label).includes(query) ||
+            safeStr(cred.username).includes(query) ||
+            safeStr(cred.category).includes(query) ||
+            safeStr(cred.hostUrl).includes(query) ||
+            safeStr(cred.notes).includes(query)
         );
 
-        const matchesTasks = c.tasks.some((task) => task.title.toLowerCase().includes(query));
+        const matchesTasks = Array.isArray(c.tasks) && c.tasks.some((task) => safeStr(task.title).includes(query));
 
         return matchesBasic || matchesContact || matchesCreds || matchesTasks;
       })
@@ -195,12 +199,12 @@ export const Header: React.FC<HeaderProps> = ({
                 ) : (
                   <div className="space-y-1 py-1">
                     {searchResults.map((client) => {
-                      const matchedCred = client.credentials.find(
+                      const matchedCred = Array.isArray(client.credentials) && client.credentials.find(
                         (cr) =>
-                          cr.label.toLowerCase().includes(query) ||
-                          cr.username.toLowerCase().includes(query) ||
-                          cr.category.toLowerCase().includes(query) ||
-                          cr.hostUrl.toLowerCase().includes(query)
+                          safeStr(cr.label).includes(query) ||
+                          safeStr(cr.username).includes(query) ||
+                          safeStr(cr.category).includes(query) ||
+                          safeStr(cr.hostUrl).includes(query)
                       );
 
                       return (
@@ -229,7 +233,7 @@ export const Header: React.FC<HeaderProps> = ({
                                     {matchedCred.label}: <strong className="text-white">{matchedCred.username || matchedCred.category}</strong>
                                   </span>
                                 </p>
-                              ) : client.cmsFramework.toLowerCase().includes(query) || client.hostingProvider.toLowerCase().includes(query) ? (
+                              ) : safeStr(client.cmsFramework).includes(query) || safeStr(client.hostingProvider).includes(query) ? (
                                 <p className="text-[11px] text-cyan-300 flex items-center gap-1 font-mono mt-0.5 truncate">
                                   <Cpu className="w-3 h-3 text-cyan-400 shrink-0" />
                                   <span>
