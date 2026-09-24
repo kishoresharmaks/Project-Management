@@ -38,6 +38,10 @@ export const DomainMonitorView: React.FC<DomainMonitorViewProps> = ({
   const [isPingingAll, setIsPingingAll] = useState(false);
   const [pingProgress, setPingProgress] = useState(0);
 
+  // Background Auto-Ping Interval Settings (default: 60s)
+  const [autoPingIntervalSec, setAutoPingIntervalSec] = useState<number>(60);
+  const [nextPingCountdown, setNextPingCountdown] = useState<number>(60);
+
   // Helper to calculate exact days remaining
   const calculateDaysRemaining = (targetDateStr?: string): number | null => {
     if (!targetDateStr) return null;
@@ -99,12 +103,31 @@ export const DomainMonitorView: React.FC<DomainMonitorViewProps> = ({
     setIsPingingAll(false);
   };
 
-  // Auto-ping first 5 clients on initial mount
+  // Background Auto-Ping Interval Loop
   useEffect(() => {
-    if (clients.length > 0 && Object.keys(pingStatuses).length === 0) {
+    if (clients.length === 0) return;
+
+    // Initial sweep on mount if empty
+    if (Object.keys(pingStatuses).length === 0) {
       handlePingAll();
     }
-  }, [clients]);
+
+    if (autoPingIntervalSec <= 0) return;
+
+    setNextPingCountdown(autoPingIntervalSec);
+
+    const countdownTimer = setInterval(() => {
+      setNextPingCountdown((prev) => {
+        if (prev <= 1) {
+          handlePingAll();
+          return autoPingIntervalSec;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(countdownTimer);
+  }, [clients, autoPingIntervalSec]);
 
   // Derived Filtered List
   const filteredClients = clients.filter((c) => {
@@ -167,19 +190,43 @@ export const DomainMonitorView: React.FC<DomainMonitorViewProps> = ({
           </p>
         </div>
 
-        {/* Global Sweep Ping Button */}
-        <button
-          onClick={handlePingAll}
-          disabled={isPingingAll || clients.length === 0}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-2xl transition-all shadow-lg ${
-            isPingingAll
-              ? 'bg-amber-950/60 text-amber-300 border border-amber-500/40 cursor-wait'
-              : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/20 active:scale-95'
-          }`}
-        >
-          <RefreshCw className={`w-4 h-4 ${isPingingAll ? 'animate-spin text-amber-400' : ''}`} />
-          <span>{isPingingAll ? `Pinging All Domains (${pingProgress}%)...` : '⚡ Ping All Servers Now'}</span>
-        </button>
+        {/* Global Sweep Ping Button & Interval Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Auto Ping Countdown Badge */}
+          {autoPingIntervalSec > 0 && !isPingingAll && (
+            <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-emerald-400 flex items-center gap-1.5 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-live" />
+              <span>Auto-Ping: {nextPingCountdown}s</span>
+            </div>
+          )}
+
+          {/* Interval Selector */}
+          <select
+            value={autoPingIntervalSec}
+            onChange={(e) => setAutoPingIntervalSec(Number(e.target.value))}
+            className="px-3 py-2 text-xs rounded-xl glass-input font-medium cursor-pointer"
+            title="Choose automatic background ping interval"
+          >
+            <option value={30}>Auto-Ping: Every 30s</option>
+            <option value={60}>Auto-Ping: Every 60s (Default)</option>
+            <option value={120}>Auto-Ping: Every 2 mins</option>
+            <option value={300}>Auto-Ping: Every 5 mins</option>
+            <option value={0}>Auto-Ping: Manual Only</option>
+          </select>
+
+          <button
+            onClick={handlePingAll}
+            disabled={isPingingAll || clients.length === 0}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all shadow-lg ${
+              isPingingAll
+                ? 'bg-amber-950/60 text-amber-300 border border-amber-500/40 cursor-wait'
+                : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/20 active:scale-95'
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 ${isPingingAll ? 'animate-spin text-amber-400' : ''}`} />
+            <span>{isPingingAll ? `Pinging All (${pingProgress}%)...` : '⚡ Ping All Now'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Progress Bar when pinging all */}
