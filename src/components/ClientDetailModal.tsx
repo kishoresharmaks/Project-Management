@@ -21,6 +21,7 @@ import {
   Save,
   Lock,
   Edit3,
+  Search,
 } from 'lucide-react';
 import type {
   ClientProject,
@@ -31,6 +32,7 @@ import type {
   BillingFrequency,
 } from '../types/client';
 import { formatBillingDisplay } from '../types/client';
+import { inspectDomainSpecs, cleanDomainName } from '../services/dnsInspectorService';
 
 interface ClientDetailModalProps {
   client: ClientProject;
@@ -60,6 +62,41 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
   // Editable Form State
   const [formData, setFormData] = useState<ClientProject>(client);
   const [isEditing, setIsEditing] = useState(false);
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [inspectMessage, setInspectMessage] = useState<string | null>(null);
+
+  const handleAutoInspectSpecs = async () => {
+    const cleaned = cleanDomainName(formData.domain);
+    if (!cleaned) return;
+
+    setIsInspecting(true);
+    setInspectMessage(null);
+
+    try {
+      const result = await inspectDomainSpecs(cleaned);
+      const updated: ClientProject = {
+        ...formData,
+        domain: result.domain,
+        serverIp: result.serverIp !== '127.0.0.1' ? result.serverIp : formData.serverIp,
+        hostingProvider: result.hostingProvider || formData.hostingProvider,
+        sslStatus: result.sslStatus || formData.sslStatus,
+        sslExpiryDate: result.sslExpiryDate || formData.sslExpiryDate,
+        domainRenewalDate: result.domainRenewalDate || formData.domainRenewalDate,
+        notes: formData.notes
+          ? `${formData.notes}\n[Auto-DNS]: Registrar: ${result.registrar}. Nameservers: ${result.nameservers.join(', ')}`
+          : `[Auto-DNS]: Registrar: ${result.registrar}. Nameservers: ${result.nameservers.join(', ')}`,
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+
+      setFormData(updated);
+      onUpdateClient(updated);
+      setInspectMessage(`Inspected & updated IP (${result.serverIp}), Host (${result.hostingProvider}) & Registrar (${result.registrar})`);
+    } catch (err: any) {
+      setInspectMessage(`Inspection error: ${err.message}`);
+    } finally {
+      setIsInspecting(false);
+    }
+  };
 
   // New Credential Form State
   const [showAddCred, setShowAddCred] = useState(false);
@@ -326,16 +363,38 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* Quick Actions Bar */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                   Website Specifications & Hosting Details
                 </span>
-                {isEditing && (
-                  <span className="text-xs text-blue-400 font-medium animate-pulse">
-                    Editing Mode Active &mdash; Make changes and click Save
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAutoInspectSpecs}
+                    disabled={isInspecting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                    title="Auto-query Google DNS & RDAP to refresh Server IP, Hosting & Registrar"
+                  >
+                    <Search className={`w-3.5 h-3.5 ${isInspecting ? 'animate-spin text-blue-400' : ''}`} />
+                    <span>{isInspecting ? 'Inspecting...' : '🔍 Auto-Inspect Specs'}</span>
+                  </button>
+
+                  {isEditing && (
+                    <span className="text-xs text-blue-400 font-medium animate-pulse">
+                      Editing Mode Active
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {inspectMessage && (
+                <div className="p-3 rounded-2xl bg-blue-950/40 border border-blue-500/30 text-blue-300 text-xs flex items-center justify-between gap-2 animate-fadeIn">
+                  <span>{inspectMessage}</span>
+                  <button onClick={() => setInspectMessage(null)} className="text-slate-400 hover:text-white">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Editable Fields Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

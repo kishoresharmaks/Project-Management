@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Plus, Globe, Server, User, Mail, IndianRupee } from 'lucide-react';
+import { X, Plus, Globe, Server, User, Mail, IndianRupee, Search, CheckCircle2 } from 'lucide-react';
 import type { ClientProject, ProjectStatus, BillingFrequency } from '../types/client';
+import { inspectDomainSpecs, cleanDomainName } from '../services/dnsInspectorService';
 
 interface AddClientModalProps {
   isOpen: boolean;
@@ -13,6 +14,9 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose,
   const [company, setCompany] = useState('');
   const [domain, setDomain] = useState('');
   const [stagingUrl, setStagingUrl] = useState('');
+  const [serverIp, setServerIp] = useState('');
+  const [sslExpiryDate, setSslExpiryDate] = useState('');
+  const [domainRenewalDate, setDomainRenewalDate] = useState('');
   const [status, setStatus] = useState<ProjectStatus>('active');
   const [cmsFramework, setCmsFramework] = useState('WordPress 6.6');
   const [hostingProvider, setHostingProvider] = useState('SiteGround / Cloud');
@@ -22,8 +26,36 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose,
   const [contactEmail, setContactEmail] = useState('');
   const [wpUser, setWpUser] = useState('');
   const [wpPass, setWpPass] = useState('');
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [inspectMessage, setInspectMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleAutoInspect = async () => {
+    const cleaned = cleanDomainName(domain);
+    if (!cleaned) {
+      setInspectMessage('Please enter a domain name first (e.g. beeshubfarmland.com)');
+      return;
+    }
+
+    setIsInspecting(true);
+    setInspectMessage(null);
+
+    try {
+      const result = await inspectDomainSpecs(cleaned);
+      setDomain(result.domain);
+      if (result.serverIp && result.serverIp !== '127.0.0.1') setServerIp(result.serverIp);
+      if (result.hostingProvider) setHostingProvider(result.hostingProvider);
+      if (result.sslExpiryDate) setSslExpiryDate(result.sslExpiryDate);
+      if (result.domainRenewalDate) setDomainRenewalDate(result.domainRenewalDate);
+
+      setInspectMessage(`Fetched IP (${result.serverIp}), Host (${result.hostingProvider}) & Registrar (${result.registrar})`);
+    } catch (err: any) {
+      setInspectMessage(`Could not inspect domain: ${err.message}`);
+    } finally {
+      setIsInspecting(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +78,10 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose,
         name: contactName || 'Primary Contact',
         email: contactEmail || '',
       },
+      serverIp: serverIp || undefined,
       sslStatus: 'active',
+      sslExpiryDate: sslExpiryDate || undefined,
+      domainRenewalDate: domainRenewalDate || undefined,
       tags: ['New Client'],
       credentials: wpUser
         ? [
@@ -127,18 +162,36 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose,
               />
             </div>
 
-            <div>
-              <label className="text-slate-400 block mb-1 flex items-center gap-1">
-                <Globe className="w-3.5 h-3.5 text-blue-400" /> Primary Domain *
-              </label>
+            <div className="sm:col-span-2 glass-card p-3 rounded-2xl border border-blue-500/20 bg-blue-950/20 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                  <Globe className="w-4 h-4 text-blue-400" /> Primary Domain *
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAutoInspect}
+                  disabled={isInspecting}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-md transition-all active:scale-95 disabled:opacity-50"
+                  title="Auto-fetch Server IP, Hosting Provider & SSL Expiry via DNS & WHOIS"
+                >
+                  <Search className={`w-3.5 h-3.5 ${isInspecting ? 'animate-spin' : ''}`} />
+                  <span>{isInspecting ? 'Inspecting...' : '🔍 Auto-Inspect Specs'}</span>
+                </button>
+              </div>
               <input
                 type="text"
-                placeholder="acmecorp.com"
+                placeholder="beeshubfarmland.com"
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
                 required
-                className="w-full p-2.5 rounded-xl glass-input font-mono"
+                className="w-full p-2.5 rounded-xl glass-input font-mono text-slate-100"
               />
+              {inspectMessage && (
+                <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[11px] flex items-center gap-1.5 animate-fadeIn">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span>{inspectMessage}</span>
+                </div>
+              )}
             </div>
 
             <div>
